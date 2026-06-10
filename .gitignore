@@ -1,0 +1,38 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Database (runtime data)
+data/EmailTrackDB.db
+data/attachments/
+
+# Logs
+logs/
+
+# PyInstaller dist
+dist/
+build/
+*.spec
+
+# Environment secrets
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Alembic generated cache
+migrations/versions/*.pyc

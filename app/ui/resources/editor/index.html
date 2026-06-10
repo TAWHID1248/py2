@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BM2Ultra HTML Editor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #1e1e2e; }
+  #editor { width: 100%; height: 100vh; }
+</style>
+<!-- Self-hosted TinyMCE: place tinymce/ folder next to this file -->
+<!-- Download from: https://www.tiny.cloud/get-tiny/self-hosted/ -->
+<script src="tinymce/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+  tinymce.init({
+    selector: '#editor',
+    plugins: 'advlist autolink lists link image charmap preview anchor '
+           + 'searchreplace visualblocks code fullscreen insertdatetime '
+           + 'media table help wordcount',
+    toolbar: 'undo redo | blocks | bold italic underline | forecolor backcolor '
+           + '| alignleft aligncenter alignright alignjustify | '
+           + 'bullist numlist outdent indent | link image | code fullscreen | help',
+    menubar: 'file edit view insert format tools table help',
+    skin: 'oxide-dark',
+    content_css: 'dark',
+    height: '100vh',
+    resize: false,
+    branding: false,
+    promotion: false,
+    setup: function(editor) {
+      // expose getContent / setContent to Python via QWebChannel
+      if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+        new QWebChannel(qt.webChannelTransport, function(channel) {
+          window.pyBridge = channel.objects.bridge;
+        });
+      }
+    }
+  });
+
+  function getEditorContent() {
+    return tinymce.activeEditor ? tinymce.activeEditor.getContent() : '';
+  }
+
+  function setEditorContent(html) {
+    if (tinymce.activeEditor) tinymce.activeEditor.setContent(html);
+  }
+</script>
+</head>
+<body>
+<textarea id="editor"></textarea>
+</body>
+</html>
