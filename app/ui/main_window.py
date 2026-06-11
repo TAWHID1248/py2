@@ -10,6 +10,7 @@ from app.ui.panels.templates_panel import TemplatesPanel
 from app.ui.panels.composer_panel import ComposerPanel
 from app.ui.panels.campaigns_panel import CampaignsPanel
 from app.ui.panels.reports_panel import ReportsPanel
+from app.ui.panels.document_panel import DocumentPanel
 from app.core.event_bus import bus
 
 
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
         self.templates  = TemplatesPanel()
         self.composer   = ComposerPanel()
         self.campaigns  = CampaignsPanel()
+        self.documents  = DocumentPanel()
         self.reports    = ReportsPanel()
 
         self.tabs.addTab(self.dashboard,  "Dashboard")
@@ -67,6 +69,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.templates,  "Templates")
         self.tabs.addTab(self.composer,   "Composer")
         self.tabs.addTab(self.campaigns,  "Campaigns")
+        self.tabs.addTab(self.documents,  "Documents")
         self.tabs.addTab(self.reports,    "Reports")
 
         self.setCentralWidget(self.tabs)

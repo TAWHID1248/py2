@@ -10,7 +10,6 @@ class Campaign(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
-    # draft | scheduled | running | paused | completed | failed | stopped
 
     template_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("templates.id"))
     account_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("accounts.id"))
@@ -24,6 +23,17 @@ class Campaign(Base):
     use_spintax: Mapped[bool] = mapped_column(Boolean, default=False)
     use_synonyms: Mapped[bool] = mapped_column(Boolean, default=False)
     inject_unsubscribe: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Phase 2 — multi-account rotation
+    use_account_rotation: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Phase 3 — document attachment
+    attach_pdf: Mapped[bool] = mapped_column(Boolean, default=False)
+    pdf_template_html: Mapped[str | None] = mapped_column(Text)        # HTML template for PDF
+    attach_word: Mapped[bool] = mapped_column(Boolean, default=False)
+    word_template_path: Mapped[str | None] = mapped_column(String(500))  # path to .docx
+    attachment_name_pattern: Mapped[str | None] = mapped_column(String(200))
+    # e.g. "Invoice_{first_name}_{last_name}.pdf"
 
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime)
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -50,8 +60,6 @@ class CampaignSend(Base):
     contact_id: Mapped[int] = mapped_column(Integer, ForeignKey("contacts.id"), index=True)
 
     status: Mapped[str] = mapped_column(String(20), default="pending")
-    # pending | sent | failed | bounced | opened | clicked
-
     message_id: Mapped[str | None] = mapped_column(String(500))
     tracking_pixel_token: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)
