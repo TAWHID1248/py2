@@ -44,23 +44,40 @@ class AccountsPanel(QWidget):
         self.btn_refresh.clicked.connect(self.refresh)
 
     def refresh(self):
+        prev_row = self.table.currentRow()
         with get_session() as s:
             accounts = AccountRepository(s).all()
-            self.table.setRowCount(len(accounts))
-            for i, acc in enumerate(accounts):
-                self.table.setItem(i, 0, QTableWidgetItem(acc.name))
-                self.table.setItem(i, 1, QTableWidgetItem(acc.email))
-                self.table.setItem(i, 2, QTableWidgetItem(acc.account_type.upper()))
-                self.table.setItem(i, 3, QTableWidgetItem(acc.smtp_host or ""))
-                self.table.setItem(i, 4, QTableWidgetItem("Yes" if acc.is_active else "No"))
-                self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, acc.id)
+            rows = [
+                (acc.id, acc.name, acc.email, acc.account_type.upper(),
+                 acc.smtp_host or "", "Yes" if acc.is_active else "No")
+                for acc in accounts
+            ]
+        self.table.setRowCount(len(rows))
+        for i, (acc_id, name, email, atype, host, active) in enumerate(rows):
+            self.table.setItem(i, 0, QTableWidgetItem(name))
+            self.table.setItem(i, 1, QTableWidgetItem(email))
+            self.table.setItem(i, 2, QTableWidgetItem(atype))
+            self.table.setItem(i, 3, QTableWidgetItem(host))
+            self.table.setItem(i, 4, QTableWidgetItem(active))
+            self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, acc_id)
+        if rows:
+            self.table.selectRow(max(0, min(prev_row, len(rows) - 1)))
 
     def _selected_id(self) -> int | None:
         row = self.table.currentRow()
+        if row < 0 and self.table.rowCount() == 1:
+            self.table.selectRow(0)
+            row = 0
         if row < 0:
             return None
         item = self.table.item(row, 0)
         return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def _require_selection(self) -> int | None:
+        acc_id = self._selected_id()
+        if not acc_id:
+            QMessageBox.warning(self, "No Selection", "Please select an account from the list first.")
+        return acc_id
 
     def _add(self):
         dlg = AccountDialog(parent=self)
@@ -70,21 +87,37 @@ class AccountsPanel(QWidget):
             self.refresh()
 
     def _edit(self):
-        acc_id = self._selected_id()
+        acc_id = self._require_selection()
         if not acc_id:
             return
+        # Extract all needed data inside the session so the dialog gets plain values
         with get_session() as s:
             acc = AccountRepository(s).get(acc_id)
             if not acc:
                 return
-            dlg = AccountDialog(account=acc, parent=self)
+            # Read all attributes while session is open to avoid DetachedInstanceError
+            acc_data = {
+                "name": acc.name,
+                "email": acc.email,
+                "account_type": acc.account_type,
+                "smtp_host": acc.smtp_host,
+                "smtp_port": acc.smtp_port,
+                "smtp_use_tls": acc.smtp_use_tls,
+                "smtp_username": acc.smtp_username,
+                "daily_limit": acc.daily_limit,
+                "hourly_limit": acc.hourly_limit,
+                "throttle_delay": acc.throttle_delay,
+                "is_active": acc.is_active,
+                "has_oauth": bool(acc.oauth_token_enc),
+            }
+        dlg = AccountDialog(account_data=acc_data, parent=self)
         if dlg.exec():
             with get_session() as s:
                 AccountRepository(s).update(acc_id, dlg.data())
             self.refresh()
 
     def _delete(self):
-        acc_id = self._selected_id()
+        acc_id = self._require_selection()
         if not acc_id:
             return
         if QMessageBox.question(self, "Delete", "Delete this account?") == QMessageBox.StandardButton.Yes:

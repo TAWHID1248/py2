@@ -51,7 +51,6 @@ class CampaignService:
             CampaignRepository(s).update_status(campaign_id, "paused")
 
     def stop(self, campaign_id: int):
-        _active.pop(campaign_id, None) and _active.get(campaign_id, threading.Event()).set()
         ev = _active.pop(campaign_id, None)
         if ev:
             ev.set()
@@ -66,6 +65,7 @@ class CampaignService:
     def _run(self, campaign_id: int, stop_ev: threading.Event):
         try:
             with get_session() as s:
+                s.expire_on_commit = False  # keep ORM objects usable across commits
                 repo      = CampaignRepository(s)
                 acc_repo  = AccountRepository(s)
                 cont_repo = ContactRepository(s)
@@ -137,6 +137,7 @@ class CampaignService:
 
                     token    = uuid.uuid4().hex
                     send_rec = repo.create_send(campaign_id, contact.id, token)
+                    send_id  = send_rec.id  # capture before commit expires the object
                     s.commit()
 
                     try:
@@ -212,7 +213,7 @@ class CampaignService:
                         if rotation_svc:
                             rotation_svc.record_send(acc.id)
 
-                        repo.mark_send(send_rec.id, "sent", message_id=msg_id)
+                        repo.mark_send(send_id, "sent", message_id=msg_id)
                         repo.increment_sent(campaign_id)
                         s.commit()
 
@@ -228,8 +229,11 @@ class CampaignService:
 
                     except Exception as exc:
                         log.error("Send failed → %s: %s", contact.email, exc)
-                        repo.mark_send(send_rec.id, "failed", error=str(exc))
-                        s.commit()
+                        try:
+                            repo.mark_send(send_id, "failed", error=str(exc))
+                            s.commit()
+                        except Exception:
+                            pass  # don't let mark_send failure swallow the original error
                         bus.log_line.emit(f"  ✗ {contact.email}: {exc}")
 
                 final = "paused" if stop_ev.is_set() else "completed"
@@ -243,5 +247,6 @@ class CampaignService:
             with get_session() as s:
                 CampaignRepository(s).update_status(campaign_id, "failed")
             bus.log_line.emit(f"[Campaign {campaign_id}] FAILED: {exc}")
+            bus.send_complete.emit(campaign_id)  # refresh UI table even on failure
         finally:
             _active.pop(campaign_id, None)

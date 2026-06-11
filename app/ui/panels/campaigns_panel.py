@@ -75,19 +75,33 @@ class CampaignsPanel(QWidget):
                  c.click_count, c.bounce_count, str(c.created_at)[:16])
                 for c in camps
             ]
+        prev_row = self.table.currentRow()
         self.table.setRowCount(len(rows))
         for i, (cid, name, status, sent, opens, clicks, bounces, created) in enumerate(rows):
             vals = [name, status, str(sent), str(opens), str(clicks), str(bounces), created]
             for j, v in enumerate(vals):
                 self.table.setItem(i, j, QTableWidgetItem(v))
             self.table.item(i, 0).setData(Qt.ItemDataRole.UserRole, cid)
+        # Restore or auto-set selection so buttons always have a target
+        if rows:
+            self.table.selectRow(max(0, min(prev_row, len(rows) - 1)))
 
     def _selected_id(self) -> int | None:
         row = self.table.currentRow()
+        # If nothing is explicitly selected but there is exactly one row, auto-select it
+        if row < 0 and self.table.rowCount() == 1:
+            self.table.selectRow(0)
+            row = 0
         if row < 0:
             return None
         item = self.table.item(row, 0)
         return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def _require_selection(self) -> int | None:
+        cid = self._selected_id()
+        if not cid:
+            QMessageBox.warning(self, "No Selection", "Please select a campaign from the list first.")
+        return cid
 
     def _new_campaign(self):
         dlg = CampaignWizard(parent=self)
@@ -97,7 +111,7 @@ class CampaignsPanel(QWidget):
             self.refresh()
 
     def _start(self):
-        cid = self._selected_id()
+        cid = self._require_selection()
         if not cid:
             return
         if cid in self._workers:
@@ -106,6 +120,7 @@ class CampaignsPanel(QWidget):
         worker = SendWorker(cid, parent=self)
         self._workers[cid] = worker
         worker.start()
+        self._append_log(f"[Campaign {cid}] Starting…")
 
     def _pause(self):
         cid = self._selected_id()
@@ -119,7 +134,7 @@ class CampaignsPanel(QWidget):
             self.refresh()
 
     def _delete(self):
-        cid = self._selected_id()
+        cid = self._require_selection()
         if not cid:
             return
         if QMessageBox.question(self, "Delete", "Delete this campaign?") == QMessageBox.StandardButton.Yes:

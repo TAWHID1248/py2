@@ -128,16 +128,16 @@ class CampaignWizard(QDialog):
 
     def _populate_combos(self):
         with get_session() as s:
-            templates = s.query(Template).order_by(Template.name).all()
-            accounts  = s.query(Account).filter_by(is_active=True).order_by(Account.name).all()
-            lists     = s.query(ContactList).order_by(ContactList.name).all()
+            templates = [(t.id, t.name) for t in s.query(Template).order_by(Template.name).all()]
+            accounts  = [(a.id, a.name, a.email) for a in s.query(Account).filter_by(is_active=True).order_by(Account.name).all()]
+            lists     = [(cl.id, cl.name, cl.record_count) for cl in s.query(ContactList).order_by(ContactList.name).all()]
 
-        for t in templates:
-            self.template_combo.addItem(t.name, userData=t.id)
-        for a in accounts:
-            self.account_combo.addItem(f"{a.name} <{a.email}>", userData=a.id)
-        for cl in lists:
-            self.list_combo.addItem(f"{cl.name} ({cl.record_count})", userData=cl.id)
+        for tid, tname in templates:
+            self.template_combo.addItem(tname, userData=tid)
+        for aid, aname, aemail in accounts:
+            self.account_combo.addItem(f"{aname} <{aemail}>", userData=aid)
+        for clid, clname, clcount in lists:
+            self.list_combo.addItem(f"{clname} ({clcount})", userData=clid)
 
     def _browse_word(self):
         path, _ = QFileDialog.getOpenFileName(

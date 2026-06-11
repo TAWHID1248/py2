@@ -8,16 +8,20 @@ from app.models.account import Account
 
 
 class AccountDialog(QDialog):
-    def __init__(self, account: Account | None = None, parent=None):
+    def __init__(self, account: Account | None = None, account_data: dict | None = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Add Account" if not account else "Edit Account")
+        self._account_data = account_data  # plain dict, no ORM session needed
+        self._has_oauth = account_data.get("has_oauth", False) if account_data else False
+        is_edit = account is not None or account_data is not None
+        self.setWindowTitle("Edit Account" if is_edit else "Add Account")
         self.setMinimumWidth(460)
-        self._account = account
         self._oauth_json: str | None = None
         self._gmail_address: str = ""
         self._build_ui()
         if account:
             self._populate(account)
+        elif account_data:
+            self._populate_from_dict(account_data)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -140,6 +144,23 @@ class AccountDialog(QDialog):
         if acc.account_type == "gmail" and acc.oauth_token_enc:
             self.gmail_status.setText("Gmail: authorized (token stored)")
 
+    def _populate_from_dict(self, d: dict):
+        self.name_edit.setText(d.get("name", ""))
+        self.email_edit.setText(d.get("email", ""))
+        idx = self.type_combo.findText(d.get("account_type", "smtp"))
+        if idx >= 0:
+            self.type_combo.setCurrentIndex(idx)
+        self.smtp_host.setText(d.get("smtp_host") or "")
+        self.smtp_port.setValue(d.get("smtp_port") or 587)
+        self.smtp_tls.setChecked(d.get("smtp_use_tls", True))
+        self.smtp_user.setText(d.get("smtp_username") or "")
+        self.daily_limit.setValue(d.get("daily_limit", 500))
+        self.hourly_limit.setValue(d.get("hourly_limit", 100))
+        self.throttle.setValue(d.get("throttle_delay", 1.0))
+        self.is_active.setChecked(d.get("is_active", True))
+        if d.get("account_type") == "gmail" and d.get("has_oauth"):
+            self.gmail_status.setText("Gmail: authorized (token stored)")
+
     def _oauth_from_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Select client_secrets.json", "", "JSON (*.json)"
@@ -197,8 +218,8 @@ class AccountDialog(QDialog):
             QMessageBox.warning(self, "Required", "Email address is required.")
             return
         if self.type_combo.currentText() == "gmail" and not self._oauth_json:
-            if self._account and self._account.oauth_token_enc:
-                pass  # keep existing token
+            if self._has_oauth:
+                pass  # keep existing token already stored in DB
             else:
                 QMessageBox.warning(self, "Required", "Authorize Gmail before saving.")
                 return

@@ -61,11 +61,11 @@ class _ListsTab(QWidget):
 
     def _load_lists(self):
         with get_session() as s:
-            lists = ContactRepository(s).all_lists()
+            lists = [(cl.id, cl.name, cl.record_count) for cl in ContactRepository(s).all_lists()]
         self.list_combo.blockSignals(True)
         self.list_combo.clear()
-        for cl in lists:
-            self.list_combo.addItem(f"{cl.name} ({cl.record_count})", userData=cl.id)
+        for cl_id, cl_name, cl_count in lists:
+            self.list_combo.addItem(f"{cl_name} ({cl_count})", userData=cl_id)
         self.list_combo.blockSignals(False)
         self._load_contacts()
 
@@ -75,15 +75,18 @@ class _ListsTab(QWidget):
             self.table.setRowCount(0)
             return
         with get_session() as s:
-            contacts = ContactRepository(s).contacts_in_list(list_id)
+            contacts = [
+                (c.email, c.first_name, c.last_name, c.company, c.phone, c.is_suppressed)
+                for c in ContactRepository(s).contacts_in_list(list_id)
+            ]
         self.table.setRowCount(len(contacts))
-        for i, c in enumerate(contacts):
-            self.table.setItem(i, 0, QTableWidgetItem(c.email))
-            self.table.setItem(i, 1, QTableWidgetItem(c.first_name or ""))
-            self.table.setItem(i, 2, QTableWidgetItem(c.last_name or ""))
-            self.table.setItem(i, 3, QTableWidgetItem(c.company or ""))
-            self.table.setItem(i, 4, QTableWidgetItem(c.phone or ""))
-            self.table.setItem(i, 5, QTableWidgetItem("Yes" if c.is_suppressed else ""))
+        for i, (email, first, last, company, phone, suppressed) in enumerate(contacts):
+            self.table.setItem(i, 0, QTableWidgetItem(email))
+            self.table.setItem(i, 1, QTableWidgetItem(first or ""))
+            self.table.setItem(i, 2, QTableWidgetItem(last or ""))
+            self.table.setItem(i, 3, QTableWidgetItem(company or ""))
+            self.table.setItem(i, 4, QTableWidgetItem(phone or ""))
+            self.table.setItem(i, 5, QTableWidgetItem("Yes" if suppressed else ""))
         self.status_label.setText(f"{len(contacts)} contacts")
 
     def _new_list(self):
@@ -142,21 +145,24 @@ class _ListsTab(QWidget):
         if not file_path:
             return
         with get_session() as s:
-            contacts = ContactRepository(s).contacts_in_list(list_id)
+            contacts = [
+                (c.email, c.first_name, c.last_name, c.company, c.phone)
+                for c in ContactRepository(s).contacts_in_list(list_id)
+            ]
         if file_path.endswith(".csv"):
             import csv
             with open(file_path, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(["email", "first_name", "last_name", "company", "phone"])
-                for c in contacts:
-                    writer.writerow([c.email, c.first_name, c.last_name, c.company, c.phone])
+                for row in contacts:
+                    writer.writerow(row)
         else:
             import openpyxl
             wb = openpyxl.Workbook()
             ws = wb.active
             ws.append(["email", "first_name", "last_name", "company", "phone"])
-            for c in contacts:
-                ws.append([c.email, c.first_name, c.last_name, c.company, c.phone])
+            for row in contacts:
+                ws.append(list(row))
             wb.save(file_path)
         QMessageBox.information(self, "Export", f"Exported {len(contacts)} contacts.")
 

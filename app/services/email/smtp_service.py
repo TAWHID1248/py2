@@ -21,6 +21,16 @@ class SMTPService:
 
     def _connect(self):
         acc = self.account
+        if not acc.smtp_host:
+            raise ValueError(
+                f"SMTP host is not configured for account '{acc.name}'. "
+                "Please edit the account and enter the SMTP server address."
+            )
+        if not self.password:
+            raise ValueError(
+                f"SMTP password is missing for account '{acc.name}'. "
+                "Please edit the account and enter the password."
+            )
         if acc.smtp_use_tls:
             conn = smtplib.SMTP(acc.smtp_host, acc.smtp_port, timeout=30)
             conn.ehlo()

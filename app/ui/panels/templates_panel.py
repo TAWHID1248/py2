@@ -69,6 +69,10 @@ class TemplatesPanel(QWidget):
         self.btn_delete.clicked.connect(self._delete)
 
     def refresh(self):
+        # Remember which template is currently selected so we can restore it
+        current = self.list_widget.currentItem()
+        selected_tid = current.data(Qt.ItemDataRole.UserRole) if current else None
+
         with get_session() as s:
             templates = s.query(Template).order_by(Template.name).all()
             data = [(t.id, t.name) for t in templates]
@@ -77,6 +81,14 @@ class TemplatesPanel(QWidget):
             item = QListWidgetItem(tname)
             item.setData(Qt.ItemDataRole.UserRole, tid)
             self.list_widget.addItem(item)
+
+        # Restore previous selection, or auto-select the first item
+        for i in range(self.list_widget.count()):
+            if self.list_widget.item(i).data(Qt.ItemDataRole.UserRole) == selected_tid:
+                self.list_widget.setCurrentRow(i)
+                return
+        if self.list_widget.count() > 0:
+            self.list_widget.setCurrentRow(0)
 
     def _on_select(self, item: QListWidgetItem):
         if not item:
@@ -107,23 +119,49 @@ class TemplatesPanel(QWidget):
                 break
 
     def _save(self):
-        item = self.list_widget.currentItem()
-        if not item:
+        name = self.name_edit.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Name Required", "Enter a template name before saving.")
             return
+
+        item = self.list_widget.currentItem()
+
+        if not item:
+            # No template selected — create a new one from the current form data
+            with get_session() as s:
+                t = Template(
+                    name=name,
+                    subject=self.subject_edit.text().strip(),
+                    html_body=self.html_edit.toPlainText() or None,
+                    text_body=self.text_edit.toPlainText() or None,
+                )
+                s.add(t)
+                s.flush()
+                tid = t.id
+            self.refresh()
+            for i in range(self.list_widget.count()):
+                if self.list_widget.item(i).data(Qt.ItemDataRole.UserRole) == tid:
+                    self.list_widget.setCurrentRow(i)
+                    break
+            QMessageBox.information(self, "Saved", f'Template "{name}" created.')
+            return
+
+        # Existing template — update it
         tid = item.data(Qt.ItemDataRole.UserRole)
         with get_session() as s:
             t = s.get(Template, tid)
             if t:
-                t.name = self.name_edit.text().strip()
+                t.name = name
                 t.subject = self.subject_edit.text().strip()
-                t.html_body = self.html_edit.toPlainText()
-                t.text_body = self.text_edit.toPlainText()
+                t.html_body = self.html_edit.toPlainText() or None
+                t.text_body = self.text_edit.toPlainText() or None
                 item.setText(t.name)
         QMessageBox.information(self, "Saved", "Template saved.")
 
     def _delete(self):
         item = self.list_widget.currentItem()
         if not item:
+            QMessageBox.warning(self, "No Selection", "Please select a template from the list first.")
             return
         if QMessageBox.question(self, "Delete", "Delete this template?") == QMessageBox.StandardButton.Yes:
             tid = item.data(Qt.ItemDataRole.UserRole)
